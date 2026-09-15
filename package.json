@@ -1,0 +1,15 @@
+{
+  "name": "jira-git-workflow-agent-skill",
+  "version": "1.0.0",
+  "description": "Installs the jira-git-workflow skill across various AI agents (AGY, Claude, Codex, Opencode, Cursor)",
+  "main": "index.js",
+  "bin": {
+    "install-jira-git-workflow": "./bin/install.js"
+  },
+  "scripts": {
+    "start": "node ./bin/install.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {}
+}
