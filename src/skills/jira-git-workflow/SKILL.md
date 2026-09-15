@@ -81,6 +81,9 @@ Runs `/checkout` then `/commit` back to back for the resolved ticket(s).
    - Any subtasks → **Done**.
    - Assignee → the name passed in `"assignee as <NAME>"`, if given; otherwise leave
      as-is.
+4. Generate a concise, friendly message containing the pull request link and the Jira ticket reference.
+   - Use the `send_viber_messages` MCP tool (from the `infobip-viber` server) to send this directly to the user's Viber if configured.
+   - If Viber MCP is not configured or fails, print the message clearly in the chat so the user can easily copy and paste it into Viber themselves.
 
 ### `/checkout-commit-pull-request "<prompt>"`
 
