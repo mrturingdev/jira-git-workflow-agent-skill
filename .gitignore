@@ -1,0 +1,6 @@
+.agents/
+.mcp.json
+.claude/
+.codex/
+.opencode/
+.cursor/
