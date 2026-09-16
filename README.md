@@ -2,16 +2,17 @@
 
 A multi-agent, cross-platform skill that automates the full Jira-ticket-to-pull-request developer workflow. It enables your AI agent to check out branches for assigned Jira tickets, commit changes, and open merge/pull requests while keeping Jira in sync.
 
-This package provides an interactive `npx` installer that configures the skill, sets up Model Context Protocol (MCP) servers, and authenticates your CLI tools automatically.
+This package provides an interactive `npx` installer that configures the skill, sets up Model Context Protocol (MCP) servers globally, and authenticates your CLI tools automatically.
 
 ## Supported AI Agents
 
-The installer automatically detects your project environment and installs the skill into the appropriate directory:
-- **AGY / Claude Flow**: `.agents/skills/`
-- **Claude Code**: `.claude/skills/`
+The installer automatically detects your selected agents and installs the skills globally into the appropriate directory, as well as wires up the global MCP config:
+- **AGY (.agents default)**: `.agents/skills/` (and `.agents/mcp.json`)
+- **Gemini (Ruflo)**: `.gemini/config/skills/` (and natively runs `agy mcp add`)
+- **Claude Desktop / Code**: `.claude/skills/` (and `claude_desktop_config.json`)
 - **Codex**: `.codex/skills/`
 - **Opencode**: `.opencode/skills/`
-- **Cursor**: `.cursor/rules/` (installs as `.mdc` rules)
+- **Cursor**: `.cursor/rules/` (installs as `.mdc` rules and `.mcp.json` in the current project)
 
 ## Installation
 
@@ -25,11 +26,14 @@ npx jira-git-workflow-agent-skill
 
 ### What the Installer Does
 
-1. **Git Provider Selection**: Asks whether you use GitHub or GitLab and configures the respective MCP server.
+1. **Git Provider Selection**: Asks whether you use GitHub or GitLab.
 2. **Interactive Authentication**: 
    - Detects the `gh` or `glab` CLI and launches their interactive `auth login` flow.
-   - Detects the `jira` CLI and launches `jira init`.
-3. **MCP Configuration**: Prompts for your Jira URL, Email, and API token, securely injecting them into your `.mcp.json` file so the AI Agent can access Jira immediately.
+   - Detects the `jira` CLI and optionally launches `jira init`.
+3. **MCP Configuration**: 
+   - Prompts for your Jira Email and API Token.
+   - Converts the credentials into a base64 string (`email:token`).
+   - Automatically injects the HTTP-based `atlassian-rovo-mcp` (using the Bearer token) into your global agent MCP configuration.
 4. **Skill Deployment**: Copies the individual skill commands into your agent's skills directory.
 
 ## Usage
@@ -37,19 +41,11 @@ npx jira-git-workflow-agent-skill
 ### In the AI Agent TUI (Slash Commands)
 Once installed, your AI agent will automatically recognize the following slash commands in its chat interface:
 
-- `/jira-git-workflow:checkout ["<ticket description>"]`: Fuzzy-matches your assigned tickets, shows acceptance criteria, and checks out the correct branch.
-- `/jira-git-workflow:commit`: Automatically determines subtasks and commits changes to the current branch.
-- `/jira-git-workflow:checkout-and-commit`: Runs checkout and commit back-to-back.
-- `/jira-git-workflow:pull-request ["assignee as <NAME>"]`: Pushes the branch, opens a PR/MR using `gh`/`glab`, and moves the Jira ticket to "Code Review".
-- `/jira-git-workflow:checkout-commit-pull-request "<prompt>"`: The full end-to-end pipeline in one command.
-
-### From the CLI
-We also provide shell wrappers so you can trigger these agent workflows directly from your terminal.
-
-```bash
-# Example: Triggering the checkout workflow directly from your terminal
-./jira-git-workflow/checkout "Fix the topup flow"
-```
+- `/checkout ["<ticket description>"]`: Fuzzy-matches your assigned tickets, shows acceptance criteria, and checks out the correct branch.
+- `/commit`: Automatically determines subtasks and commits changes to the current branch.
+- `/checkout-and-commit`: Runs checkout and commit back-to-back.
+- `/pull-request ["assignee as <NAME>"]`: Pushes the branch, opens a PR/MR using native `gh`/`glab`, and moves the Jira ticket to "Code Review".
+- `/checkout-commit-pull-request "<prompt>"`: The full end-to-end pipeline in one command.
 
 ## Prerequisites
 

@@ -4,11 +4,13 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 const { execSync } = require('child_process');
+const inquirer = require('inquirer');
 
 const SKILLS_SOURCE = path.join(__dirname, '..', 'src', 'skills');
 
 const TARGETS = {
   AGY: '.agents/skills',
+  GEMINI: '.gemini/config/skills',
   CLAUDE: '.claude/skills',
   CODEX: '.codex/skills',
   OPENCODE: '.opencode/skills',
@@ -66,33 +68,34 @@ async function setupMcpConfig(projectRoot, gitChoice) {
     }
   }
 
-  // Configure Jira MCP
-  config.mcpServers["jira-mcp"] = {
-    command: "npx",
-    args: ["-y", "@modelcontextprotocol/server-jira"],
-    env: {}
+  // Configure Jira MCP using Atlassian Rovo
+  config.mcpServers["atlassian-rovo-mcp"] = {
+    url: "https://mcp.atlassian.com/v2/mcp",
+    headers: {
+      "Authorization": "Bearer YOUR_API_KEY_HERE"
+    }
   };
 
-  // Configure Git MCP
-  if (gitChoice === 'github') {
-    config.mcpServers["github-mcp"] = {
-      command: "npx",
-      args: ["-y", "@modelcontextprotocol/server-github"],
-      env: {}
-    };
-  } else if (gitChoice === 'gitlab') {
-    config.mcpServers["gitlab-mcp"] = {
-      command: "npx",
-      args: ["-y", "@modelcontextprotocol/server-gitlab"],
-      env: {}
-    };
-  }
-
   // Ask to authenticate Git CLI
-  const authGit = await askQuestion(`\nDo you want to authenticate with ${gitChoice === 'github' ? 'GitHub (gh)' : 'GitLab (glab)'} CLI now? (y/N): `);
-  if (authGit.toLowerCase().startsWith('y')) {
-    const cliCmd = gitChoice === 'github' ? 'gh' : 'glab';
-    if (hasCommand(cliCmd)) {
+  const cliCmd = gitChoice === 'github' ? 'gh' : 'glab';
+  const providerName = gitChoice === 'github' ? 'GitHub (gh)' : 'GitLab (glab)';
+  let isAuthenticated = false;
+
+  if (hasCommand(cliCmd)) {
+    try {
+      execSync(`${cliCmd} auth status`, { stdio: 'ignore' });
+      isAuthenticated = true;
+      console.log(`\n✅ You are already authenticated with ${providerName}.`);
+    } catch {
+      console.log(`\n⚠️ You are not currently authenticated with ${providerName}.`);
+    }
+    
+    const promptMsg = isAuthenticated 
+      ? `Do you want to re-authenticate or add a new account for ${providerName} now? (y/N): ` 
+      : `Do you want to authenticate with ${providerName} now? (y/N): `;
+
+    const authGit = await askQuestion(promptMsg);
+    if (authGit.toLowerCase().startsWith('y')) {
       console.log(`\n🔑 Running ${cliCmd} auth login...`);
       try {
         execSync(`${cliCmd} auth login`, { stdio: 'inherit' });
@@ -100,15 +103,14 @@ async function setupMcpConfig(projectRoot, gitChoice) {
       } catch (err) {
         console.log(`⚠️ ${cliCmd} authentication was interrupted or failed.`);
       }
-    } else {
-      console.log(`⚠️ The '${cliCmd}' CLI was not found on your system. Please install it first.`);
     }
+  } else {
+    console.log(`\n⚠️ The '${cliCmd}' CLI was not found on your system. Please install it to interact with ${providerName}.`);
   }
 
   // Ask to authenticate Jira CLI / Setup MCP Envs
   const authJira = await askQuestion(`\nDo you want to configure Jira authentication? (y/N): `);
   if (authJira.toLowerCase().startsWith('y')) {
-    // 1. Try Jira CLI if they want CLI
     if (hasCommand('jira')) {
       const runJiraCli = await askQuestion(`We detected the 'jira' CLI. Do you want to run 'jira init'? (y/N): `);
       if (runJiraCli.toLowerCase().startsWith('y')) {
@@ -122,17 +124,18 @@ async function setupMcpConfig(projectRoot, gitChoice) {
       }
     }
 
-    // 2. Also ask for MCP environment variables which the agent needs
     console.log(`\nTo allow the AI Agent to access Jira via MCP, please provide your Jira credentials.`);
-    const jiraUrl = await askQuestion(`Jira URL (e.g., https://yourdomain.atlassian.net): `);
-    const jiraEmail = await askQuestion(`Jira Email: `);
+    console.log(`\nTo generate an API token:`);
+    console.log(`1. Go to https://id.atlassian.com/manage-profile/security/api-tokens`);
+    console.log(`2. Click 'Create API token', enter a label, and click 'Create'.`);
+    console.log(`3. Copy the generated token.\n`);
+    const jiraEmail = await askQuestion(`Jira Email (e.g. your.email@example.com): `);
     const jiraToken = await askQuestion(`Jira API Token: `);
     
-    if (jiraUrl && jiraEmail && jiraToken) {
-      config.mcpServers["jira-mcp"].env = {
-        JIRA_URL: jiraUrl.trim(),
-        JIRA_EMAIL: jiraEmail.trim(),
-        JIRA_API_TOKEN: jiraToken.trim()
+    if (jiraEmail && jiraToken) {
+      const base64Key = Buffer.from(`${jiraEmail.trim()}:${jiraToken.trim()}`).toString('base64');
+      config.mcpServers["atlassian-rovo-mcp"].headers = {
+        "Authorization": `Bearer ${base64Key}`
       };
       console.log(`✅ Configured Jira MCP credentials.`);
     } else {
@@ -140,8 +143,7 @@ async function setupMcpConfig(projectRoot, gitChoice) {
     }
   }
 
-  fs.writeFileSync(mcpConfigPath, JSON.stringify(config, null, 2));
-  console.log(`\n✅ Updated MCP configuration in .mcp.json`);
+  return config;
 }
 
 async function run() {
@@ -150,37 +152,109 @@ async function run() {
   const gitAns = await askQuestion("Which Git provider do you use? (github/gitlab) [github]: ");
   const gitChoice = (gitAns.trim().toLowerCase() === 'gitlab') ? 'gitlab' : 'github';
 
+  const os = require('os');
   const projectRoot = process.cwd();
+  const pcRoot = os.homedir();
   
   console.log(`\n⚙️ Configuring MCP servers and Authentication...`);
-  await setupMcpConfig(projectRoot, gitChoice);
+  const mcpConfig = await setupMcpConfig(projectRoot, gitChoice);
 
-  console.log(`\n📦 Installing skills to standard .agents/skills directory...`);
-  const defaultTarget = path.join(projectRoot, '.agents', 'skills');
-  copyFolderSync(SKILLS_SOURCE, defaultTarget);
-  
-  const agentsDir = path.join(projectRoot, '.agents');
-  const skillsJsonPath = path.join(agentsDir, 'skills.json');
-  if (!fs.existsSync(skillsJsonPath)) {
-    fs.writeFileSync(skillsJsonPath, JSON.stringify({ entries: [{ path: "skills" }] }, null, 2));
-    console.log(`✅ Created .agents/skills.json`);
-  }
+  console.log(`\n📦 Installing skills to root 'skills' directory...`);
+  const rootTarget = path.join(pcRoot, 'skills');
+  copyFolderSync(SKILLS_SOURCE, rootTarget);
+
+  const { selectedAgents } = await inquirer.prompt([
+    {
+      type: 'checkbox',
+      name: 'selectedAgents',
+      message: 'Select which AI providers to install this skill for:',
+      choices: [
+        { name: 'AGY (.agents)', value: 'AGY', checked: true },
+        { name: 'Gemini', value: 'GEMINI', checked: true },
+        { name: 'Claude', value: 'CLAUDE', checked: true },
+        { name: 'Codex', value: 'CODEX', checked: true },
+        { name: 'Opencode', value: 'OPENCODE', checked: true },
+        { name: 'Cursor', value: 'CURSOR', checked: true }
+      ]
+    }
+  ]);
 
   for (const [agent, targetPath] of Object.entries(TARGETS)) {
-    const fullPath = path.join(projectRoot, targetPath);
-    if (agent === 'CURSOR' && fs.existsSync(path.join(projectRoot, '.cursor'))) {
-      const cursorRulesDir = path.join(projectRoot, '.cursor', 'rules');
-      if (!fs.existsSync(cursorRulesDir)) fs.mkdirSync(cursorRulesDir, { recursive: true });
-      
-      const skills = fs.readdirSync(SKILLS_SOURCE);
-      for (const skill of skills) {
-        const skillMd = path.join(SKILLS_SOURCE, skill, 'SKILL.md');
-        if (fs.existsSync(skillMd)) {
-          fs.copyFileSync(skillMd, path.join(cursorRulesDir, `${skill}.mdc`));
+    // Install if the user selected this agent in the checkbox
+    if (selectedAgents.includes(agent)) {
+      console.log(`Setting up for ${agent}...`);
+      if (agent === 'CURSOR') {
+        const fullPath = path.join(projectRoot, targetPath);
+        const cursorRulesDir = path.join(projectRoot, '.cursor', 'rules');
+        if (!fs.existsSync(cursorRulesDir)) fs.mkdirSync(cursorRulesDir, { recursive: true });
+        
+        const skills = fs.readdirSync(SKILLS_SOURCE);
+        for (const skill of skills) {
+          const skillMd = path.join(SKILLS_SOURCE, skill, 'SKILL.md');
+          if (fs.existsSync(skillMd)) {
+            fs.copyFileSync(skillMd, path.join(cursorRulesDir, `${skill}.mdc`));
+          }
+        }
+      } else {
+        const fullPath = path.join(pcRoot, targetPath);
+        copyFolderSync(SKILLS_SOURCE, fullPath);
+        
+        if (agent === 'AGY') {
+          const agentsDir = path.join(pcRoot, '.agents');
+          const skillsJsonPath = path.join(agentsDir, 'skills.json');
+          if (!fs.existsSync(skillsJsonPath)) {
+            fs.writeFileSync(skillsJsonPath, JSON.stringify({ entries: [{ path: "skills" }] }, null, 2));
+          }
         }
       }
-    } else if (agent !== 'AGY' && fs.existsSync(path.join(projectRoot, targetPath.split('/')[0]))) {
-      copyFolderSync(SKILLS_SOURCE, fullPath);
+      
+      // Install MCP config in the provider's specific way
+      let mcpPaths = [];
+      if (agent === 'CURSOR') {
+        mcpPaths.push(path.join(projectRoot, '.cursor', 'mcp.json'));
+      } else if (agent === 'CLAUDE') {
+        if (process.platform === 'win32') {
+          mcpPaths.push(path.join(pcRoot, 'AppData', 'Roaming', 'Claude', 'claude_desktop_config.json'));
+        } else if (process.platform === 'darwin') {
+          mcpPaths.push(path.join(pcRoot, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json'));
+        } else {
+          mcpPaths.push(path.join(pcRoot, '.config', 'Claude', 'claude_desktop_config.json'));
+        }
+      } else if (agent === 'GEMINI') {
+        // Use default MCP installation process for GEMINI via agy mcp add
+        console.log(`\n🔑 Running agy mcp add for Gemini...`);
+        const jiraConfig = mcpConfig.mcpServers["atlassian-rovo-mcp"];
+        if (jiraConfig && jiraConfig.headers) {
+          const headers = Object.entries(jiraConfig.headers).map(([k, v]) => `--header "${k}: ${v}"`).join(' ');
+          try {
+            execSync(`agy mcp add ${headers} atlassian-rovo-mcp ${jiraConfig.url}`, { stdio: 'inherit' });
+          } catch (e) {
+            console.log(`⚠️ agy CLI not found or failed to add MCP for Gemini.`);
+          }
+        }
+      } else if (agent === 'AGY') {
+        mcpPaths.push(path.join(projectRoot, '.mcp.json'));
+        mcpPaths.push(path.join(pcRoot, '.agents', 'mcp.json'));
+      } else if (agent === 'CODEX') {
+        mcpPaths.push(path.join(pcRoot, '.codex', 'mcp.json'));
+      } else if (agent === 'OPENCODE') {
+        mcpPaths.push(path.join(pcRoot, '.opencode', 'mcp.json'));
+      }
+
+      for (const mcpPath of mcpPaths) {
+        const dir = path.dirname(mcpPath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        let currentConfig = { mcpServers: {} };
+        if (fs.existsSync(mcpPath)) {
+          try {
+            currentConfig = JSON.parse(fs.readFileSync(mcpPath, 'utf8'));
+            if (!currentConfig.mcpServers) currentConfig.mcpServers = {};
+          } catch (e) {}
+        }
+        currentConfig.mcpServers = { ...currentConfig.mcpServers, ...mcpConfig.mcpServers };
+        fs.writeFileSync(mcpPath, JSON.stringify(currentConfig, null, 2));
+        console.log(`✅ Updated MCP config for ${agent} at ${mcpPath}`);
+      }
     }
   }
 

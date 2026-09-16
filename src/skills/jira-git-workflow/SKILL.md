@@ -1,33 +1,25 @@
 ---
 name: jira-git-workflow
-description: Automates the full Jira-ticket-to-pull-request developer workflow — checking out branches for assigned Jira tickets, committing changes (including per-subtask commits), and opening a GitLab merge request that updates the Jira ticket's status and assignee. Use this skill whenever the user wants to start work on a Jira ticket, checkout a branch for "my current ticket", commit work against a ticket/subtasks, open a pull/merge request tied to a Jira ticket, or run the combined checkout → commit → PR flow. Trigger on commands like /checkout, /commit, /pull-request, /checkout-and-commit, and /checkout-commit-pull-request, and on natural-language equivalents ("pick up my next ticket", "commit this against the topup ticket", "open an MR for this ticket").
-compatibility: Requires Jira access (API token or MCP connector) and GitLab CLI (glab) authenticated against the target project. Optional git-lab-cli-install and jira-install sub-skills handle first-time setup.
+description: Automates the full Jira-ticket-to-pull-request developer workflow — checking out branches for assigned Jira tickets, committing changes (including per-subtask commits), and opening a GitHub/GitLab pull/merge request that updates the Jira ticket's status and assignee. Use this skill whenever the user wants to start work on a Jira ticket, checkout a branch for "my current ticket", commit work against a ticket/subtasks, open a pull/merge request tied to a Jira ticket, or run the combined checkout → commit → PR flow. Trigger on commands like /checkout, /commit, /pull-request, /checkout-and-commit, and /checkout-commit-pull-request, and on natural-language equivalents ("pick up my next ticket", "commit this against the topup ticket", "open a PR for this ticket").
+compatibility: Requires Jira access via the `atlassian-rovo-mcp` connector and GitHub CLI (`gh`) or GitLab CLI (`glab`) authenticated against the target project. The `jira-install` sub-skill handles first-time setup.
 ---
 
 # Jira → Git → Pull Request Workflow
 
 A skill for automating the developer loop of picking up a Jira ticket, doing the
-git work, and shipping a merge request that keeps Jira in sync.
+git work, and shipping a pull/merge request that keeps Jira in sync.
 
 This skill is a **workflow orchestrator** over two building blocks:
-- **Jira** (read ticket detail/acceptance criteria, update status, update assignee, update subtasks)
-- **git + GitLab CLI (`glab`)** (branch, commit, push, open MR)
+- **Jira** (read ticket detail/acceptance criteria, update status, update assignee, update subtasks) via `atlassian-rovo-mcp`.
+- **git + Git CLI (`gh` or `glab`)** (branch, commit, push, open PR/MR).
 
 ## Setup (do this once per environment)
 
 Before running any command below, confirm the environment is ready:
 
-1. **Jira access** — check for a Jira MCP connector or API token. If missing, point the
-   user to the `jira-install` skill (`jira-install/SKILL.md`) instead of guessing at
-   credentials.
-2. **GitLab CLI** — confirm `glab` is installed and authenticated (`glab auth status`).
-   If not, point the user to the `git-lab-cli-install` skill.
-3. **Credential handling (important):** Never print, log, or echo Jira/GitLab API
-   keys or tokens in full — not to the terminal, not into commit messages, not into
-   anything that could be pasted into Slack or a PR description. If a key must be
-   referenced (e.g. confirming which account is active), show only a masked form
-   (e.g. `••••1234`). Claude should know the key exists and which one is active, but
-   should never surface the raw value.
+1. **Jira access** — Ensure the `atlassian-rovo-mcp` connector is available globally. Do not attempt to install or copy it into the local project or environment. Instead, simply verify that the global configuration (e.g., in `~/.gemini/mcp.json`, `~/.agents/mcp.json`, or the provider's global settings) contains the valid setup and that the tools are accessible.
+2. **Git CLI (`gh` or `glab`)** — We use the native GitHub/GitLab CLIs exclusively. Ensure `gh` or `glab` is installed and authenticated (`gh auth status` or `glab auth status`). If not, guide the user to install and authenticate the respective CLI.
+3. **Credential handling (important):** Never print, log, or echo Jira/GitLab API keys or tokens in full — not to the terminal, not into commit messages, not into anything that could be pasted into Slack or a PR description. If a key must be referenced (e.g. confirming which account is active), show only a masked form (e.g. `••••1234`). The agent should know the key exists and which one is active, but should never surface the raw value.
 
 ## Commands
 
@@ -70,8 +62,8 @@ Runs `/checkout` then `/commit` back to back for the resolved ticket(s).
 ### `/pull-request ["assignee as <NAME>"]`
 
 1. Push the current branch to origin.
-2. Open a merge request using `glab` **explicitly** (don't fall back to a raw `git
-   push -o merge_request.create`-style implicit MR unless `glab` is unavailable —
+2. Open a pull/merge request using `gh` or `glab` **explicitly** (don't fall back to a raw `git
+   push -o merge_request.create`-style implicit MR unless the CLI is unavailable —
    prefer the CLI so title/description/labels stay consistent).
    - Target branch: the branch named after the ticket's **fix version**, not
      necessarily `main`.
@@ -113,11 +105,3 @@ before considering the skill "done":
   ticket-key prefix, etc.) — currently unspecified.
 - Where the Jira credential/token is sourced from (MCP connector vs. `.env` vs. CLI
   config), and confirming the masking behavior above matches however it's stored.
-
-## Sub-skills referenced
-
-- `jira-install/SKILL.md` — first-time Jira auth setup.
-- `git-lab-cli-install/SKILL.md` — first-time `glab` install + auth setup.
-
-These should be built as separate, small skills that this workflow skill can point
-users to, rather than duplicating setup instructions here.
