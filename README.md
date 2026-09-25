@@ -8,7 +8,7 @@ This package provides an interactive `npx` installer that configures the skill, 
 
 The installer automatically detects your selected agents and installs the skills globally into the appropriate directory, as well as wires up the global MCP config:
 - **AGY (.agents default)**: `.agents/skills/` (and `.agents/mcp.json`)
-- **Gemini (Ruflo)**: `.gemini/config/skills/` (and natively runs `agy mcp add`)
+- **Gemini**: `.gemini/config/skills/` (and natively runs `agy mcp add`)
 - **Claude Desktop / Code**: `.claude/skills/` (and `claude_desktop_config.json`)
 - **Codex**: `.codex/skills/`
 - **Opencode**: `.opencode/skills/`
@@ -51,4 +51,4 @@ Once installed, your AI agent will automatically recognize the following slash c
 
 - Node.js (for the installer)
 - [GitHub CLI (`gh`)](https://cli.github.com/) or [GitLab CLI (`glab`)](https://gitlab.com/gitlab-org/cli)
-- (Optional) [Jira CLI](https://github.com/ankitpokhrel/jira-cli)
+- (Optional) [Jira CLI] (https://github.com/atlassian/atlassian-mcp-server)

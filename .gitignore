@@ -4,3 +4,5 @@
 .codex/
 .opencode/
 .cursor/
+graphify-out/
+generate_graph.py
