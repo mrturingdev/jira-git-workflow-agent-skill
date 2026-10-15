@@ -1,5 +1,5 @@
 ---
-name: jira-git-workflow:commit
+name: commit
 description: Commits work against a Jira ticket or its subtasks. See jira-git-workflow skill for details.
 ---
 # /jira-git-workflow:commit

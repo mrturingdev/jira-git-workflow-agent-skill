@@ -1,0 +1,13 @@
+{
+  "name": "jira-git-workflow",
+  "version": "1.1.0",
+  "description": "Automates the Jira-ticket-to-pull-request workflow: checkout branches for assigned tickets, commit against subtasks, and open PRs/MRs that update Jira.",
+  "author": {
+    "name": "Pushan Maharjan",
+    "url": "https://github.com/mrturingdev"
+  },
+  "homepage": "https://github.com/mrturingdev/jira-git-workflow-agent-skill",
+  "repository": "https://github.com/mrturingdev/jira-git-workflow-agent-skill",
+  "license": "MIT",
+  "keywords": ["jira", "git", "github", "gitlab", "pull-request", "workflow"]
+}

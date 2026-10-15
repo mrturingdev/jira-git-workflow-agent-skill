@@ -1,17 +1,40 @@
 {
   "name": "jira-git-workflow-agent-skill",
-  "version": "1.0.1",
-  "description": "Installs the jira-git-workflow skill across various AI agents (AGY, Claude, Codex, Opencode, Cursor)",
-  "main": "index.js",
+  "version": "1.1.0",
+  "description": "Installs the jira-git-workflow skill across various AI agents (AGY, Gemini, Claude, Codex, Opencode, Cursor)",
   "bin": {
     "install-jira-git-workflow": "./bin/install.js"
   },
+  "files": [
+    "bin/",
+    "skills/",
+    "SECURITY.md"
+  ],
   "scripts": {
     "start": "node ./bin/install.js",
     "test": "node --test"
   },
-  "author": "",
+  "keywords": [
+    "jira",
+    "git",
+    "github",
+    "gitlab",
+    "pull-request",
+    "ai-agent",
+    "claude-code",
+    "skills",
+    "mcp"
+  ],
+  "author": "Pushan Maharjan",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrturingdev/jira-git-workflow-agent-skill.git"
+  },
+  "homepage": "https://github.com/mrturingdev/jira-git-workflow-agent-skill#readme",
+  "bugs": {
+    "url": "https://github.com/mrturingdev/jira-git-workflow-agent-skill/issues"
+  },
   "engines": {
     "node": ">=18"
   }

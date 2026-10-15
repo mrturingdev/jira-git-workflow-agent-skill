@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "jira-git-workflow",
+  "description": "Jira-ticket-to-pull-request workflow skills for Claude Code.",
+  "owner": {
+    "name": "Pushan Maharjan",
+    "url": "https://github.com/mrturingdev"
+  },
+  "plugins": [
+    {
+      "name": "jira-git-workflow",
+      "description": "Checkout branches for assigned Jira tickets, commit against subtasks, and open PRs/MRs that update Jira.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}
