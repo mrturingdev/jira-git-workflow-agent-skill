@@ -7,12 +7,12 @@ This package provides an interactive `npx` installer that configures the skill, 
 ## Supported AI Agents
 
 The installer automatically detects your selected agents and installs the skills globally into the appropriate directory, as well as wires up the global MCP config:
-- **AGY (.agents default)**: `.agents/skills/` (and `.agents/mcp.json`)
+- **AGY (.agents default)**: `.agents/skills/` (and `~/.agents/mcp.json`)
 - **Gemini**: `.gemini/config/skills/` (and natively runs `agy mcp add`)
 - **Claude Desktop / Code**: `.claude/skills/` (and `claude_desktop_config.json`)
 - **Codex**: `.codex/skills/`
 - **Opencode**: `.opencode/skills/`
-- **Cursor**: `.cursor/rules/` (installs as `.mdc` rules and `.mcp.json` in the current project)
+- **Cursor**: `.mdc` rules in the project's `.cursor/rules/`, MCP config in the global `~/.cursor/mcp.json`
 
 ## Installation
 
@@ -31,7 +31,7 @@ npx jira-git-workflow-agent-skill
    - Detects the `gh` or `glab` CLI and launches their interactive `auth login` flow.
    - Detects the `jira` CLI and optionally launches `jira init`.
 3. **MCP Configuration**: 
-   - Prompts for your Jira Email and API Token.
+   - Prompts for your Jira Email and API Token. The token prompt is hidden; if the `JIRA_API_TOKEN` environment variable is set, it is used instead of prompting.
    - Converts the credentials into a base64 string (`email:token`).
    - Automatically injects the HTTP-based `atlassian-rovo-mcp` (using the Bearer token) into your global agent MCP configuration.
 4. **Skill Deployment**: Copies the individual skill commands into your agent's skills directory.
@@ -52,3 +52,16 @@ Once installed, your AI agent will automatically recognize the following slash c
 - Node.js (for the installer)
 - [GitHub CLI (`gh`)](https://cli.github.com/) or [GitLab CLI (`glab`)](https://gitlab.com/gitlab-org/cli)
 - (Optional) [Jira CLI] (https://github.com/atlassian/atlassian-mcp-server)
+
+## Security
+
+![CI](https://github.com/mrturingdev/jira-git-workflow-agent-skill/actions/workflows/ci.yml/badge.svg)
+
+See [SECURITY.md](SECURITY.md) for the full policy and how to report vulnerabilities.
+
+- Zero runtime dependencies.
+- Credentials the installer writes itself go to per-user config files in your home directory with `0600` permissions (directories `0700`), not into your project. For Gemini, the token is stored by the `agy` CLI under its own permissions.
+- An existing MCP config that is not valid JSON is never overwritten; it is skipped with a warning.
+- No telemetry.
+- Upgrading from 1.0.1 or earlier: older versions wrote the token to the project `.mcp.json` and `.cursor/mcp.json`. Delete them, check they were never committed, and rotate your token (see SECURITY.md).
+- Known limitation: for Gemini, the token is passed to `agy mcp add` as a command-line argument and may be briefly visible to other local processes.

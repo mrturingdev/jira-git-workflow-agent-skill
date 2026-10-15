@@ -6,3 +6,5 @@
 .cursor/
 graphify-out/
 generate_graph.py
+node_modules/
+.DS_Store
