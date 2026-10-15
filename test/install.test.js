@@ -53,3 +53,35 @@ test('writeMcpConfig throws on invalid JSON and leaves file untouched', () => {
   assert.throws(() => writeMcpConfig(p, { a: {} }), new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.equal(fs.readFileSync(p, 'utf8'), '{not json');
 });
+
+test('writeMcpConfig keepExisting preserves a real entry but adds a missing one', () => {
+  const p = path.join(tmp(), 'mcp.json');
+  const real = { url: 'u', headers: { Authorization: 'Bearer REAL' } };
+  fs.writeFileSync(p, JSON.stringify({ mcpServers: { 'atlassian-rovo-mcp': real } }));
+  const placeholder = { url: 'u', headers: { Authorization: 'Bearer YOUR_API_KEY_HERE' } };
+  writeMcpConfig(p, { 'atlassian-rovo-mcp': placeholder, other: {} }, { keepExisting: ['atlassian-rovo-mcp'] });
+  const servers = JSON.parse(fs.readFileSync(p, 'utf8')).mcpServers;
+  assert.deepEqual(servers['atlassian-rovo-mcp'], real);
+  assert.ok(servers.other);
+  const q = path.join(tmp(), 'new.json');
+  writeMcpConfig(q, { 'atlassian-rovo-mcp': placeholder }, { keepExisting: ['atlassian-rovo-mcp'] });
+  assert.deepEqual(JSON.parse(fs.readFileSync(q, 'utf8')).mcpServers['atlassian-rovo-mcp'], placeholder);
+});
+
+test('writeMcpConfig throws when mcpServers is not an object and leaves no temp files', () => {
+  for (const bad of ['"x"', '[]', 'null']) {
+    const d = tmp();
+    const p = path.join(d, 'mcp.json');
+    const body = `{"mcpServers":${bad}}`;
+    fs.writeFileSync(p, body);
+    assert.throws(() => writeMcpConfig(p, { a: {} }), /mcpServers/);
+    assert.equal(fs.readFileSync(p, 'utf8'), body);
+    assert.deepEqual(fs.readdirSync(d), ['mcp.json']);
+  }
+});
+
+test('writeMcpConfig leaves no temp file after success', () => {
+  const d = tmp();
+  writeMcpConfig(path.join(d, 'mcp.json'), { a: {} });
+  assert.deepEqual(fs.readdirSync(d), ['mcp.json']);
+});

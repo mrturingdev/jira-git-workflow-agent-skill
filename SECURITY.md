@@ -19,11 +19,19 @@ Use GitHub private vulnerability reporting: open the repository's "Security" tab
 ## Security Model
 
 - Zero runtime dependencies.
-- Credentials are written only to per-user config files in the home directory, with `0600` permissions (directories `0700`).
-- The installer never writes secrets into the project directory.
+- Credentials the installer writes itself go to per-user config files in the home directory with `0600` permissions; directories it creates get `0700`. For Gemini, the token is stored by the `agy` CLI under its own permissions.
+- The installer does not write secrets into the project directory.
 - Network access is limited to what your agents do with the configured Atlassian Rovo MCP endpoint (`https://mcp.atlassian.com/v2/mcp`) and the `gh`, `glab`, `jira`, and `agy` CLIs the installer invokes.
 - No telemetry.
 
 ## Known Limitations
 
 - When installing for Gemini, the token is passed to `agy mcp add` as a command-line argument and may be briefly visible to other local processes.
+
+## Upgrading from 1.0.1 or earlier
+
+Earlier versions wrote the Jira token in plain text to the project's `.mcp.json` and `.cursor/mcp.json`. After upgrading:
+
+- Delete those entries or files.
+- Check they were never committed. If they were, treat the token as leaked.
+- Rotate the token at https://id.atlassian.com/manage-profile/security/api-tokens.

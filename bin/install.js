@@ -35,14 +35,21 @@ function copyFolderSync(from, to) {
 }
 
 function askQuestion(query) {
-    const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout,
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  return new Promise((resolve, reject) => {
+    let answered = false;
+    rl.on('close', () => {
+      if (!answered) reject(new Error('Input closed before an answer was entered.'));
     });
-    return new Promise(resolve => rl.question(query, ans => {
-        rl.close();
-        resolve(ans);
-    }));
+    rl.question(query, ans => {
+      answered = true;
+      rl.close();
+      resolve(ans);
+    });
+  });
 }
 
 function askSecret(query) {
@@ -52,12 +59,25 @@ function askSecret(query) {
     terminal: true,
   });
   let muted = false;
-  const origWrite = rl._writeToOutput;
-  rl._writeToOutput = function (str) {
-    if (!muted) origWrite.call(rl, str);
-  };
-  return new Promise(resolve => {
+  if (typeof rl._writeToOutput === 'function') {
+    const origWrite = rl._writeToOutput;
+    rl._writeToOutput = function (str) {
+      if (!muted) origWrite.call(rl, str);
+    };
+  } else {
+    console.log('⚠️ Could not mute terminal input; the token will be visible as you type.');
+  }
+  return new Promise((resolve, reject) => {
+    let answered = false;
+    rl.on('close', () => {
+      if (!answered) {
+        muted = false;
+        process.stdout.write('\n');
+        reject(new Error('Input closed before a token was entered.'));
+      }
+    });
     rl.question(query, ans => {
+      answered = true;
       muted = false;
       rl.close();
       process.stdout.write('\n');
@@ -90,7 +110,8 @@ function parseAgentSelection(answer, agents) {
   return [...picked].sort((x, y) => x - y).map(n => agents[n - 1].value);
 }
 
-function writeMcpConfig(mcpPath, servers) {
+// keepExisting: server names that must not be overwritten if already present in the file.
+function writeMcpConfig(mcpPath, servers, { keepExisting = [] } = {}) {
   let current = { mcpServers: {} };
   if (fs.existsSync(mcpPath)) {
     try {
@@ -101,12 +122,27 @@ function writeMcpConfig(mcpPath, servers) {
     if (!current || typeof current !== 'object' || Array.isArray(current)) {
       throw new Error(`Existing MCP config at ${mcpPath} is not a JSON object. Fix or move it, then re-run the installer.`);
     }
-    if (!current.mcpServers) current.mcpServers = {};
+    if (current.mcpServers === undefined) {
+      current.mcpServers = {};
+    } else if (!current.mcpServers || typeof current.mcpServers !== 'object' || Array.isArray(current.mcpServers)) {
+      throw new Error(`"mcpServers" in existing MCP config at ${mcpPath} is not a JSON object. Fix or move it, then re-run the installer.`);
+    }
   }
-  current.mcpServers = { ...current.mcpServers, ...servers };
+  const toWrite = { ...servers };
+  for (const name of keepExisting) {
+    if (Object.prototype.hasOwnProperty.call(current.mcpServers, name)) delete toWrite[name];
+  }
+  current.mcpServers = { ...current.mcpServers, ...toWrite };
   fs.mkdirSync(path.dirname(mcpPath), { recursive: true, mode: 0o700 });
-  fs.writeFileSync(mcpPath, JSON.stringify(current, null, 2), { mode: 0o600 });
-  fs.chmodSync(mcpPath, 0o600);
+  const tmpPath = `${mcpPath}.${process.pid}.tmp`;
+  try {
+    fs.writeFileSync(tmpPath, JSON.stringify(current, null, 2), { mode: 0o600, flag: 'wx' });
+    fs.chmodSync(tmpPath, 0o600);
+    fs.renameSync(tmpPath, mcpPath);
+  } catch (e) {
+    fs.rmSync(tmpPath, { force: true });
+    throw e;
+  }
 }
 
 function hasCommand(cmd) {
@@ -119,7 +155,7 @@ function hasCommand(cmd) {
 }
 
 async function setupMcpConfig(gitChoice) {
-  const config = { mcpServers: {} };
+  const config = { mcpServers: {}, hasCredentials: false };
 
   // Configure Jira MCP using Atlassian Rovo
   config.mcpServers["atlassian-rovo-mcp"] = {
@@ -182,19 +218,20 @@ async function setupMcpConfig(gitChoice) {
     console.log(`1. Go to https://id.atlassian.com/manage-profile/security/api-tokens`);
     console.log(`2. Click 'Create API token', enter a label, and click 'Create'.`);
     console.log(`3. Copy the generated token.\n`);
-    const jiraEmail = await askQuestion(`Jira Email (e.g. your.email@example.com): `);
-    let jiraToken = process.env.JIRA_API_TOKEN;
-    if (jiraToken && jiraToken.trim()) {
+    const jiraEmail = (await askQuestion(`Jira Email (e.g. your.email@example.com): `)).trim();
+    let jiraToken = (process.env.JIRA_API_TOKEN || '').trim();
+    if (jiraToken) {
       console.log(`Using JIRA_API_TOKEN from environment.`);
     } else {
-      jiraToken = await askSecret(`Jira API Token: `);
+      jiraToken = (await askSecret(`Jira API Token: `)).trim();
     }
-    
+
     if (jiraEmail && jiraToken) {
-      const base64Key = Buffer.from(`${jiraEmail.trim()}:${jiraToken.trim()}`).toString('base64');
+      const base64Key = Buffer.from(`${jiraEmail}:${jiraToken}`).toString('base64');
       config.mcpServers["atlassian-rovo-mcp"].headers = {
         "Authorization": `Bearer ${base64Key}`
       };
+      config.hasCredentials = true;
       console.log(`✅ Configured Jira MCP credentials.`);
     } else {
       console.log(`⚠️ Skipped Jira MCP environment configuration.`);
@@ -235,11 +272,9 @@ async function run() {
   }
 
   for (const [agent, targetPath] of Object.entries(TARGETS)) {
-    // Install if the user selected this agent
     if (selectedAgents.includes(agent)) {
       console.log(`Setting up for ${agent}...`);
       if (agent === 'CURSOR') {
-        const fullPath = path.join(projectRoot, targetPath);
         const cursorRulesDir = path.join(projectRoot, '.cursor', 'rules');
         if (!fs.existsSync(cursorRulesDir)) fs.mkdirSync(cursorRulesDir, { recursive: true });
         
@@ -277,9 +312,11 @@ async function run() {
         }
       } else if (agent === 'GEMINI') {
         // Use default MCP installation process for GEMINI via agy mcp add
-        console.log(`\n🔑 Running agy mcp add for Gemini...`);
         const jiraConfig = mcpConfig.mcpServers["atlassian-rovo-mcp"];
-        if (jiraConfig && jiraConfig.headers) {
+        if (!mcpConfig.hasCredentials) {
+          console.log(`⚠️ No Jira credentials provided; skipping agy mcp add for Gemini.`);
+        } else if (jiraConfig && jiraConfig.headers) {
+          console.log(`\n🔑 Running agy mcp add for Gemini...`);
           const headerArgs = Object.entries(jiraConfig.headers).flatMap(([k, v]) => ['--header', `${k}: ${v}`]);
           try {
             execFileSync('agy', ['mcp', 'add', ...headerArgs, 'atlassian-rovo-mcp', jiraConfig.url], { stdio: 'inherit' });
@@ -297,7 +334,9 @@ async function run() {
 
       for (const mcpPath of mcpPaths) {
         try {
-          writeMcpConfig(mcpPath, mcpConfig.mcpServers);
+          writeMcpConfig(mcpPath, mcpConfig.mcpServers, {
+            keepExisting: mcpConfig.hasCredentials ? [] : ['atlassian-rovo-mcp'],
+          });
           console.log(`✅ Updated MCP config for ${agent} at ${mcpPath}`);
         } catch (e) {
           console.log(`⚠️ ${e.message}`);
@@ -312,7 +351,7 @@ async function run() {
 
 if (require.main === module) {
   run().catch(err => {
-    console.error("❌ Installation failed:", err);
+    console.error("❌ Installation failed:", err.message || err);
     process.exit(1);
   });
 }

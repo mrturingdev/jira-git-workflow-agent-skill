@@ -61,7 +61,8 @@ Once installed, your AI agent will automatically recognize the following slash c
 See [SECURITY.md](SECURITY.md) for the full policy and how to report vulnerabilities.
 
 - Zero runtime dependencies.
-- Credentials are written only to per-user config files in your home directory with `0600` permissions, never into your project.
+- Credentials the installer writes itself go to per-user config files in your home directory with `0600` permissions (directories `0700`), not into your project. For Gemini, the token is stored by the `agy` CLI under its own permissions.
 - An existing MCP config that is not valid JSON is never overwritten; it is skipped with a warning.
 - No telemetry.
+- Upgrading from 1.0.1 or earlier: older versions wrote the token to the project `.mcp.json` and `.cursor/mcp.json`. Delete them, check they were never committed, and rotate your token (see SECURITY.md).
 - Known limitation: for Gemini, the token is passed to `agy mcp add` as a command-line argument and may be briefly visible to other local processes.
