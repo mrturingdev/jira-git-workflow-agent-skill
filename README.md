@@ -55,8 +55,7 @@ Once installed, your AI agent will automatically recognize the following slash c
 
 ## Security
 
-<!-- Replace OWNER/REPO with your GitHub repository -->
-![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/mrturingdev/jira-git-workflow-agent-skill/actions/workflows/ci.yml/badge.svg)
 
 See [SECURITY.md](SECURITY.md) for the full policy and how to report vulnerabilities.
 
