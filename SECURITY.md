@@ -14,6 +14,7 @@ Use GitHub private vulnerability reporting: open the repository's "Security" tab
 ## Scope
 
 - The installer (`bin/install.js`)
+- The Claude Code plugin manifests (`.claude-plugin/`) and its MCP config (`.mcp.json`)
 - The shipped skill files
 
 ## Security Model

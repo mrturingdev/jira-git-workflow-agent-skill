@@ -1,5 +1,5 @@
 ---
-name: jira-git-workflow:pull-request
+name: pull-request
 description: Opens a pull/merge request tied to a Jira ticket and updates Jira. See jira-git-workflow skill for details.
 ---
 # /jira-git-workflow:pull-request

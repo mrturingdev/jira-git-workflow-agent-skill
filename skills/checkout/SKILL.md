@@ -1,5 +1,5 @@
 ---
-name: jira-git-workflow:checkout
+name: checkout
 description: Checks out branches for assigned Jira tickets. See jira-git-workflow skill for details.
 ---
 # /jira-git-workflow:checkout

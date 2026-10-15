@@ -5,7 +5,7 @@ const path = require('path');
 const readline = require('readline');
 const { execSync, execFileSync } = require('child_process');
 
-const SKILLS_SOURCE = path.join(__dirname, '..', 'src', 'skills');
+const SKILLS_SOURCE = path.join(__dirname, '..', 'skills');
 
 const TARGETS = {
   AGY: '.agents/skills',
@@ -346,7 +346,7 @@ async function run() {
   }
 
   console.log("\n✨ Installation complete!");
-  console.log(`Use /jira-git-workflow:checkout in your AI agent to begin!\n`);
+  console.log(`Use /checkout in your AI agent to begin!\n`);
 }
 
 if (require.main === module) {
@@ -356,4 +356,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseAgentSelection, AGENT_CHOICES, writeMcpConfig };
+module.exports = { parseAgentSelection, AGENT_CHOICES, writeMcpConfig, SKILLS_SOURCE };

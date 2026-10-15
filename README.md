@@ -5,26 +5,55 @@
 
 A multi-agent, cross-platform skill that automates the full Jira-ticket-to-pull-request developer workflow. Your AI agent checks out branches for assigned Jira tickets, commits changes, and opens pull/merge requests while keeping Jira in sync.
 
-The package ships an interactive `npx` installer with zero runtime dependencies. It installs the skills for the agents you choose, wires up the Atlassian Rovo MCP server, and helps you authenticate your Git and Jira CLIs.
+It ships two ways: a **Claude Code plugin**, and an interactive **`npx` installer** (zero runtime dependencies) for AGY, Gemini, Claude, Codex, Opencode and Cursor.
 
 ## Prerequisites
 
-- Node.js 18 or later (for the installer)
 - [GitHub CLI (`gh`)](https://cli.github.com/) or [GitLab CLI (`glab`)](https://gitlab.com/gitlab-org/cli)
 - A Jira account and an [Atlassian API token](https://id.atlassian.com/manage-profile/security/api-tokens)
+- Node.js 18 or later (npx installer only)
 - Optional: [Jira CLI](https://github.com/ankitpokhrel/jira-cli) (the installer offers to run `jira init` if it is installed)
 
 ## Installation
 
-Run the installer from the root of your project:
+### Option 1: Claude Code plugin
+
+In Claude Code, run:
+
+```
+/plugin install jira-git-workflow --marketplace mrturingdev/jira-git-workflow-agent-skill
+```
+
+On older Claude Code versions, add the marketplace first:
+
+```
+/plugin marketplace add mrturingdev/jira-git-workflow-agent-skill
+/plugin install jira-git-workflow@jira-git-workflow
+```
+
+The plugin also configures the `atlassian-rovo-mcp` server. It reads your credentials from the `JIRA_AUTH_TOKEN` environment variable, so no secret is stored in any file. Set it in your shell profile before starting Claude Code:
+
+```bash
+export JIRA_AUTH_TOKEN="$(printf '%s' 'you@example.com:YOUR_API_TOKEN' | base64)"
+```
+
+Update later with `/plugin update jira-git-workflow`.
+
+### Option 2: npx installer (any agent, no clone needed)
+
+Run it from the root of your project:
 
 ```bash
 npx jira-git-workflow-agent-skill
 ```
 
-To test locally from a clone of this repository, run `npx .` inside the package directory.
+To run the latest code straight from GitHub instead of npm:
 
-### What the installer does
+```bash
+npx github:mrturingdev/jira-git-workflow-agent-skill
+```
+
+#### What the installer does
 
 1. **Git provider**: asks whether you use GitHub or GitLab.
 2. **Git authentication**: if `gh` or `glab` is installed, shows whether you are logged in and offers to run `auth login`.
@@ -51,15 +80,15 @@ The Claude Desktop config lives in `~/Library/Application Support/Claude/` on ma
 
 ## Usage
 
-Once installed, your AI agent recognizes these slash commands:
+Once installed, your AI agent recognizes these slash commands. With the Claude Code plugin they are prefixed with the plugin name (`/jira-git-workflow:checkout`); with the npx installer they are plain (`/checkout`).
 
 | Command | What it does |
 |---|---|
-| `/jira-git-workflow:checkout ["<ticket description>"]` | Fuzzy-matches your assigned tickets, shows acceptance criteria, and checks out the right branch. |
-| `/jira-git-workflow:commit` | Works out the subtasks and commits changes to the current branch. |
-| `/jira-git-workflow:checkout-and-commit` | Runs checkout and commit back to back. |
-| `/jira-git-workflow:pull-request ["assignee as <NAME>"]` | Pushes the branch, opens a PR/MR with `gh`/`glab`, and moves the Jira ticket to "Code Review". |
-| `/jira-git-workflow:checkout-commit-pull-request "<prompt>"` | The full end-to-end pipeline in one command. |
+| `/checkout ["<ticket description>"]` | Fuzzy-matches your assigned tickets, shows acceptance criteria, and checks out the right branch. |
+| `/commit` | Works out the subtasks and commits changes to the current branch. |
+| `/checkout-and-commit` | Runs checkout and commit back to back. |
+| `/pull-request ["assignee as <NAME>"]` | Pushes the branch, opens a PR/MR with `gh`/`glab`, and moves the Jira ticket to "Code Review". |
+| `/checkout-commit-pull-request "<prompt>"` | The full end-to-end pipeline in one command. |
 
 The `jira-install` skill walks you through creating an Atlassian API token and setting up the MCP connection by hand.
 
@@ -68,7 +97,8 @@ The `jira-install` skill walks you through creating an Atlassian API token and s
 See [SECURITY.md](SECURITY.md) for the full policy and how to report a vulnerability privately.
 
 - Zero runtime dependencies. CI runs `npm audit` and the test suite on Node 18, 20 and 22 for every pull request and weekly.
-- Credentials the installer writes go only to per-user config files in your home directory, with `0600` permissions (directories it creates get `0700`). Nothing secret is written into your project. For Gemini, the `agy` CLI stores the token under its own permissions.
+- The Claude Code plugin stores no credentials: its MCP config reads `JIRA_AUTH_TOKEN` from your environment.
+- Credentials the npx installer writes go only to per-user config files in your home directory, with `0600` permissions (directories it creates get `0700`). Nothing secret is written into your project. For Gemini, the `agy` CLI stores the token under its own permissions.
 - An existing MCP config that is not valid JSON is never overwritten. It is skipped with a warning.
 - No telemetry.
 - **Upgrading from 1.0.1 or earlier:** older versions wrote the token in plain text to the project's `.mcp.json` and `.cursor/mcp.json`. Delete those files, check they were never committed, and rotate your token.
@@ -79,7 +109,17 @@ See [SECURITY.md](SECURITY.md) for the full policy and how to report a vulnerabi
 ```bash
 npm ci
 npm test
+claude plugin validate .          # check the plugin and marketplace manifests
+claude --plugin-dir .             # try the plugin locally without installing it
 ```
+
+### Releasing
+
+1. Bump `version` in both `package.json` and `.claude-plugin/plugin.json` (a test checks they match).
+2. Commit, then tag and push: `git tag v1.2.3 && git push origin v1.2.3`.
+3. The `Release` workflow runs the audit and tests, then publishes to npm with provenance. It needs an `NPM_TOKEN` repository secret.
+
+Claude Code users get the new version through `/plugin update jira-git-workflow`.
 
 ## License
 

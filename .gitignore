@@ -1,5 +1,7 @@
 .agents/
 .mcp.json
+# The plugin's root .mcp.json holds no secrets (token comes from $JIRA_AUTH_TOKEN)
+!/.mcp.json
 .claude/
 .codex/
 .opencode/

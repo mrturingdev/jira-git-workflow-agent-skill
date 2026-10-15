@@ -1,5 +1,5 @@
 ---
-name: jira-git-workflow:checkout-and-commit
+name: checkout-and-commit
 description: Runs /jira-git-workflow:checkout then /jira-git-workflow:commit back to back. See jira-git-workflow skill for details.
 ---
 # /jira-git-workflow:checkout-and-commit
