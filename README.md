@@ -1,6 +1,7 @@
 # Jira Git Workflow Agent Skill
 
 [![CI](https://github.com/mrturingdev/jira-git-workflow-agent-skill/actions/workflows/ci.yml/badge.svg)](https://github.com/mrturingdev/jira-git-workflow-agent-skill/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A multi-agent, cross-platform skill that automates the full Jira-ticket-to-pull-request developer workflow. Your AI agent checks out branches for assigned Jira tickets, commits changes, and opens pull/merge requests while keeping Jira in sync.
 
@@ -82,4 +83,4 @@ npm test
 
 ## License
 
-MIT
+[MIT](LICENSE) © 2026 Pushan Maharjan
