@@ -4,7 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 const { execSync } = require('child_process');
-const inquirer = require('inquirer');
 
 const SKILLS_SOURCE = path.join(__dirname, '..', 'src', 'skills');
 
@@ -44,6 +43,29 @@ function askQuestion(query) {
         rl.close();
         resolve(ans);
     }));
+}
+
+const AGENT_CHOICES = [
+  { name: 'AGY (.agents)', value: 'AGY' },
+  { name: 'Gemini', value: 'GEMINI' },
+  { name: 'Claude', value: 'CLAUDE' },
+  { name: 'Codex', value: 'CODEX' },
+  { name: 'Opencode', value: 'OPENCODE' },
+  { name: 'Cursor', value: 'CURSOR' }
+];
+
+function parseAgentSelection(answer, agents) {
+  if (!answer || !answer.trim()) return agents.map(a => a.value);
+  const picked = new Set();
+  for (const raw of answer.split(',')) {
+    const tok = raw.trim();
+    const n = Number(tok);
+    if (!/^\d+$/.test(tok) || n < 1 || n > agents.length) {
+      throw new Error(`Invalid selection "${tok}": enter numbers between 1 and ${agents.length}`);
+    }
+    picked.add(n);
+  }
+  return [...picked].sort((x, y) => x - y).map(n => agents[n - 1].value);
 }
 
 function hasCommand(cmd) {
@@ -163,21 +185,18 @@ async function run() {
   const rootTarget = path.join(pcRoot, 'skills');
   copyFolderSync(SKILLS_SOURCE, rootTarget);
 
-  const { selectedAgents } = await inquirer.prompt([
-    {
-      type: 'checkbox',
-      name: 'selectedAgents',
-      message: 'Select which AI providers to install this skill for:',
-      choices: [
-        { name: 'AGY (.agents)', value: 'AGY', checked: true },
-        { name: 'Gemini', value: 'GEMINI', checked: true },
-        { name: 'Claude', value: 'CLAUDE', checked: true },
-        { name: 'Codex', value: 'CODEX', checked: true },
-        { name: 'Opencode', value: 'OPENCODE', checked: true },
-        { name: 'Cursor', value: 'CURSOR', checked: true }
-      ]
+  console.log('\nAI providers:');
+  AGENT_CHOICES.forEach((a, i) => console.log(`  ${i + 1}. ${a.name}`));
+  const allNums = AGENT_CHOICES.map((_, i) => i + 1).join(',');
+  let selectedAgents;
+  while (!selectedAgents) {
+    const ans = await askQuestion(`Select AI providers to install for (comma-separated numbers, Enter for all) [${allNums}]: `);
+    try {
+      selectedAgents = parseAgentSelection(ans, AGENT_CHOICES);
+    } catch (e) {
+      console.log(`❌ ${e.message}`);
     }
-  ]);
+  }
 
   for (const [agent, targetPath] of Object.entries(TARGETS)) {
     // Install if the user selected this agent in the checkbox
@@ -262,7 +281,11 @@ async function run() {
   console.log(`Use /jira-git-workflow:checkout in your AI agent to begin!\n`);
 }
 
-run().catch(err => {
-  console.error("❌ Installation failed:", err);
-  process.exit(1);
-});
+if (require.main === module) {
+  run().catch(err => {
+    console.error("❌ Installation failed:", err);
+    process.exit(1);
+  });
+}
+
+module.exports = { parseAgentSelection, AGENT_CHOICES };

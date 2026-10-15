@@ -7,11 +7,12 @@
     "install-jira-git-workflow": "./bin/install.js"
   },
   "scripts": {
-    "start": "node ./bin/install.js"
+    "start": "node ./bin/install.js",
+    "test": "node --test"
   },
   "author": "",
   "license": "MIT",
-  "dependencies": {
-    "inquirer": "^8.2.6"
+  "engines": {
+    "node": ">=18"
   }
 }
