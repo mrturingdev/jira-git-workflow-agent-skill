@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 
 const SKILLS_SOURCE = path.join(__dirname, '..', 'src', 'skills');
 
@@ -45,6 +45,28 @@ function askQuestion(query) {
     }));
 }
 
+function askSecret(query) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: true,
+  });
+  let muted = false;
+  const origWrite = rl._writeToOutput;
+  rl._writeToOutput = function (str) {
+    if (!muted) origWrite.call(rl, str);
+  };
+  return new Promise(resolve => {
+    rl.question(query, ans => {
+      muted = false;
+      rl.close();
+      process.stdout.write('\n');
+      resolve(ans);
+    });
+    muted = true;
+  });
+}
+
 const AGENT_CHOICES = [
   { name: 'AGY (.agents)', value: 'AGY' },
   { name: 'Gemini', value: 'GEMINI' },
@@ -68,27 +90,36 @@ function parseAgentSelection(answer, agents) {
   return [...picked].sort((x, y) => x - y).map(n => agents[n - 1].value);
 }
 
+function writeMcpConfig(mcpPath, servers) {
+  let current = { mcpServers: {} };
+  if (fs.existsSync(mcpPath)) {
+    try {
+      current = JSON.parse(fs.readFileSync(mcpPath, 'utf8'));
+    } catch {
+      throw new Error(`Could not parse existing MCP config at ${mcpPath}. Fix or move it, then re-run the installer.`);
+    }
+    if (!current || typeof current !== 'object' || Array.isArray(current)) {
+      throw new Error(`Existing MCP config at ${mcpPath} is not a JSON object. Fix or move it, then re-run the installer.`);
+    }
+    if (!current.mcpServers) current.mcpServers = {};
+  }
+  current.mcpServers = { ...current.mcpServers, ...servers };
+  fs.mkdirSync(path.dirname(mcpPath), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(mcpPath, JSON.stringify(current, null, 2), { mode: 0o600 });
+  fs.chmodSync(mcpPath, 0o600);
+}
+
 function hasCommand(cmd) {
   try {
-    execSync(`command -v ${cmd}`, { stdio: 'ignore' });
+    execFileSync('sh', ['-c', 'command -v "$1"', 'sh', cmd], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
   }
 }
 
-async function setupMcpConfig(projectRoot, gitChoice) {
-  const mcpConfigPath = path.join(projectRoot, '.mcp.json');
-  let config = { mcpServers: {} };
-  
-  if (fs.existsSync(mcpConfigPath)) {
-    try {
-      config = JSON.parse(fs.readFileSync(mcpConfigPath, 'utf8'));
-      if (!config.mcpServers) config.mcpServers = {};
-    } catch (e) {
-      console.warn("Could not parse existing .mcp.json, creating new one.");
-    }
-  }
+async function setupMcpConfig(gitChoice) {
+  const config = { mcpServers: {} };
 
   // Configure Jira MCP using Atlassian Rovo
   config.mcpServers["atlassian-rovo-mcp"] = {
@@ -152,7 +183,12 @@ async function setupMcpConfig(projectRoot, gitChoice) {
     console.log(`2. Click 'Create API token', enter a label, and click 'Create'.`);
     console.log(`3. Copy the generated token.\n`);
     const jiraEmail = await askQuestion(`Jira Email (e.g. your.email@example.com): `);
-    const jiraToken = await askQuestion(`Jira API Token: `);
+    let jiraToken = process.env.JIRA_API_TOKEN;
+    if (jiraToken && jiraToken.trim()) {
+      console.log(`Using JIRA_API_TOKEN from environment.`);
+    } else {
+      jiraToken = await askSecret(`Jira API Token: `);
+    }
     
     if (jiraEmail && jiraToken) {
       const base64Key = Buffer.from(`${jiraEmail.trim()}:${jiraToken.trim()}`).toString('base64');
@@ -179,7 +215,7 @@ async function run() {
   const pcRoot = os.homedir();
   
   console.log(`\n⚙️ Configuring MCP servers and Authentication...`);
-  const mcpConfig = await setupMcpConfig(projectRoot, gitChoice);
+  const mcpConfig = await setupMcpConfig(gitChoice);
 
   console.log(`\n📦 Installing skills to root 'skills' directory...`);
   const rootTarget = path.join(pcRoot, 'skills');
@@ -199,7 +235,7 @@ async function run() {
   }
 
   for (const [agent, targetPath] of Object.entries(TARGETS)) {
-    // Install if the user selected this agent in the checkbox
+    // Install if the user selected this agent
     if (selectedAgents.includes(agent)) {
       console.log(`Setting up for ${agent}...`);
       if (agent === 'CURSOR') {
@@ -230,7 +266,7 @@ async function run() {
       // Install MCP config in the provider's specific way
       let mcpPaths = [];
       if (agent === 'CURSOR') {
-        mcpPaths.push(path.join(projectRoot, '.cursor', 'mcp.json'));
+        mcpPaths.push(path.join(pcRoot, '.cursor', 'mcp.json'));
       } else if (agent === 'CLAUDE') {
         if (process.platform === 'win32') {
           mcpPaths.push(path.join(pcRoot, 'AppData', 'Roaming', 'Claude', 'claude_desktop_config.json'));
@@ -244,15 +280,14 @@ async function run() {
         console.log(`\n🔑 Running agy mcp add for Gemini...`);
         const jiraConfig = mcpConfig.mcpServers["atlassian-rovo-mcp"];
         if (jiraConfig && jiraConfig.headers) {
-          const headers = Object.entries(jiraConfig.headers).map(([k, v]) => `--header "${k}: ${v}"`).join(' ');
+          const headerArgs = Object.entries(jiraConfig.headers).flatMap(([k, v]) => ['--header', `${k}: ${v}`]);
           try {
-            execSync(`agy mcp add ${headers} atlassian-rovo-mcp ${jiraConfig.url}`, { stdio: 'inherit' });
+            execFileSync('agy', ['mcp', 'add', ...headerArgs, 'atlassian-rovo-mcp', jiraConfig.url], { stdio: 'inherit' });
           } catch (e) {
             console.log(`⚠️ agy CLI not found or failed to add MCP for Gemini.`);
           }
         }
       } else if (agent === 'AGY') {
-        mcpPaths.push(path.join(projectRoot, '.mcp.json'));
         mcpPaths.push(path.join(pcRoot, '.agents', 'mcp.json'));
       } else if (agent === 'CODEX') {
         mcpPaths.push(path.join(pcRoot, '.codex', 'mcp.json'));
@@ -261,18 +296,12 @@ async function run() {
       }
 
       for (const mcpPath of mcpPaths) {
-        const dir = path.dirname(mcpPath);
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        let currentConfig = { mcpServers: {} };
-        if (fs.existsSync(mcpPath)) {
-          try {
-            currentConfig = JSON.parse(fs.readFileSync(mcpPath, 'utf8'));
-            if (!currentConfig.mcpServers) currentConfig.mcpServers = {};
-          } catch (e) {}
+        try {
+          writeMcpConfig(mcpPath, mcpConfig.mcpServers);
+          console.log(`✅ Updated MCP config for ${agent} at ${mcpPath}`);
+        } catch (e) {
+          console.log(`⚠️ ${e.message}`);
         }
-        currentConfig.mcpServers = { ...currentConfig.mcpServers, ...mcpConfig.mcpServers };
-        fs.writeFileSync(mcpPath, JSON.stringify(currentConfig, null, 2));
-        console.log(`✅ Updated MCP config for ${agent} at ${mcpPath}`);
       }
     }
   }
@@ -288,4 +317,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseAgentSelection, AGENT_CHOICES };
+module.exports = { parseAgentSelection, AGENT_CHOICES, writeMcpConfig };
